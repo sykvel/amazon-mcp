@@ -166,6 +166,55 @@ Add to `.cursor/mcp.json` or your editor's MCP configuration:
 
 Environment variables are inherited from `.env` in the project root if running from there.
 
+### Remote MCP (HTTP + Login with Amazon)
+
+Each server can also listen on Streamable HTTP. MCP clients then connect to a URL and sign in with Amazon instead of embedding refresh tokens in client config.
+
+1. Register this redirect URI on your LWA / SP-API application:
+
+   `http://localhost:3000/oauth/amazon/callback` (or your public `https://` URL)
+
+2. Set environment variables:
+
+```bash
+MCP_TRANSPORT=http
+MCP_SERVER_URL=http://localhost:3000
+MCP_HTTP_HOST=0.0.0.0          # listen on all interfaces when exposing remotely
+MCP_HTTP_PORT=3000
+LWA_CLIENT_ID=amzn1.application-oa2-client.xxxxxxxxxxxx
+LWA_CLIENT_SECRET=amzn1.oa2-cs.xxxxxxxxxxxxxxxxxxxxxxxx
+# Draft SP-API apps (default). Set false for published apps:
+LWA_CONSENT_DRAFT=true
+```
+
+Refresh tokens, `SELLER_ID`, `MARKETPLACE_ID`, and `ADS_PROFILE_ID` are optional in HTTP mode. They are obtained (or discovered) after Login with Amazon. You can still set them as defaults.
+
+3. Start a server:
+
+```bash
+# Seller Central
+cd packages/amazon-seller-mcp && pnpm start:http
+
+# Ads API (use a different MCP_HTTP_PORT / MCP_SERVER_URL)
+cd packages/amazon-ads-mcp && pnpm start:http
+```
+
+4. Point the MCP client at the `/mcp` URL. Cursor example (`.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "amazon-seller": {
+      "url": "http://localhost:3000/mcp"
+    }
+  }
+}
+```
+
+The client discovers OAuth metadata, opens Login with Amazon (Ads) or Seller Central consent (Seller), and then calls the MCP server with a bearer token. Amazon API calls use that user's LWA tokens.
+
+Use HTTPS and a public `MCP_SERVER_URL` in production. HTTP is allowed for local development. OAuth sessions are stored in memory, so a process restart requires signing in again.
+
 ### Development with tsx
 
 For development without building:
@@ -472,12 +521,13 @@ Shared library used by both MCP servers:
 
 | Module | Description |
 |---|---|
-| `TokenManager` | LWA OAuth 2.0 with caching and auto-refresh |
+| `TokenManager` | LWA OAuth 2.0 with caching, auto-refresh, and per-request remote login tokens |
 | `AmazonApiClient` | HTTP client with `Authorization: Bearer` and rate limiting |
 | `RateLimiter` | Token bucket rate limiting per endpoint category |
 | `ReportPoller` | Async report polling with automatic decompression |
 | `CSVParser` | Parse tab and comma-delimited reports |
 | `ConfigLoader` | Zod-based configuration validation |
+| Remote MCP | Streamable HTTP server with Login with Amazon OAuth for MCP clients |
 
 ## Development
 
@@ -512,6 +562,7 @@ amazon-mcp/
 │   │       ├── client/           # HTTP client and rate limiter
 │   │       ├── config/           # Zod-based configuration
 │   │       ├── mcp/              # MCP utilities
+│   │       ├── remote/           # Streamable HTTP + Login with Amazon OAuth
 │   │       └── utils/            # CSV parser, report poller
 │   │
 │   ├── amazon-seller-mcp/        # Seller Central MCP (118 tools)
@@ -573,6 +624,10 @@ cd packages/amazon-seller-mcp && pnpm dev
 
 # Ads API
 cd packages/amazon-ads-mcp && pnpm dev
+
+# Remote HTTP + Login with Amazon
+cd packages/amazon-seller-mcp && pnpm dev:http
+cd packages/amazon-ads-mcp && pnpm dev:http
 ```
 
 ### Versioning and Publishing

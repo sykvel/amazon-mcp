@@ -11,6 +11,7 @@ export interface AmazonApiClientConfig {
   authHeaderName: AuthHeaderName;
   authHeaderPrefix?: string;
   additionalHeaders?: Record<string, string>;
+  resolveAdditionalHeaders?: () => Record<string, string> | Promise<Record<string, string>>;
   errorParser?: (error: unknown) => AmazonApiError;
   maxRetries?: number;
   retryDelayMs?: number;
@@ -63,6 +64,16 @@ export class AmazonApiClient {
     });
 
     this.client.interceptors.request.use(async (requestConfig) => {
+      if (config.resolveAdditionalHeaders) {
+        const extra = await config.resolveAdditionalHeaders();
+        requestConfig.headers = requestConfig.headers ?? {};
+        for (const [key, value] of Object.entries(extra)) {
+          if (value) {
+            requestConfig.headers[key] = value;
+          }
+        }
+      }
+
       const existingToken = requestConfig.headers['x-amz-access-token']
         || requestConfig.headers['Authorization'];
 

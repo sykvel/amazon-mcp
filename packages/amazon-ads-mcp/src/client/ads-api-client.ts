@@ -113,7 +113,20 @@ export function getAdsAPIClient(): AmazonApiClient {
       authHeaderPrefix: 'Bearer',
       additionalHeaders: {
         'Amazon-Advertising-API-ClientId': config.LWA_CLIENT_ID,
-        'Amazon-Advertising-API-Scope': config.ADS_PROFILE_ID,
+      },
+      resolveAdditionalHeaders: (): Record<string, string> => {
+        const profileId = getConfig().ADS_PROFILE_ID;
+        if (!profileId) {
+          throw new AdsAPIError(
+            'No advertising profile ID. Set ADS_PROFILE_ID or complete Login with Amazon so a profile can be selected.',
+            undefined,
+            'MISSING_PROFILE',
+            false
+          );
+        }
+        return {
+          'Amazon-Advertising-API-Scope': profileId,
+        };
       },
       errorParser: parseAdsApiError as (error: unknown) => AmazonApiError,
       userAgent: 'amazon-ads-mcp/1.0.0 (Language=TypeScript)',

@@ -157,6 +157,36 @@ describe('TokenManager', () => {
       // Should only make one API call
       expect(axios.post).toHaveBeenCalledTimes(1);
     });
+
+    it('uses Login with Amazon tokens from the MCP request context', async () => {
+      const { runWithAmazonAuthContext } = await import('../src/remote/amazon-auth-context.js');
+
+      const token = await runWithAmazonAuthContext(
+        {
+          mcpAccessToken: 'mcp-access',
+          clientId: 'mcp-client',
+          tokens: {
+            accessToken: 'session-lwa-token',
+            refreshToken: 'session-refresh',
+            expiresAt: Date.now() + 60 * 60 * 1000,
+            tokenType: 'bearer',
+          },
+        },
+        () => tokenManager.getAccessToken()
+      );
+
+      expect(token).toBe('session-lwa-token');
+      expect(axios.post).not.toHaveBeenCalled();
+    });
+
+    it('throws when no refresh token and no Amazon login context exist', async () => {
+      const manager = new TokenManager({
+        clientId: 'test-client-id',
+        clientSecret: 'test-client-secret',
+      });
+
+      await expect(manager.getAccessToken()).rejects.toThrow(/No Amazon credentials available/);
+    });
   });
 
   describe('clearCache', () => {

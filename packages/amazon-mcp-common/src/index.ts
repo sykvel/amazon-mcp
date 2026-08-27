@@ -41,3 +41,23 @@ export type {
 // Types
 export type { AmazonRegion, ApiEndpoint } from './types/common.js';
 export { ENDPOINTS, MARKETPLACE_IDS } from './types/common.js';
+
+// Remote MCP (Streamable HTTP + Login with Amazon)
+export { resolveMcpTransportMode } from './remote/transport.js';
+export type { McpTransportMode } from './remote/transport.js';
+export { readRemoteHttpEnv } from './remote/env.js';
+export type { RemoteHttpEnv } from './remote/env.js';
+export {
+  getAmazonAuthContext,
+  runWithAmazonAuthContext,
+  updateAmazonAuthContextTokens,
+} from './remote/amazon-auth-context.js';
+export type { AmazonAuthContext, AmazonUserTokens } from './remote/amazon-auth-context.js';
+export { startRemoteMcpServer, resolvePublicUrls } from './remote/http-server.js';
+export type {
+  RemoteMcpServerOptions,
+  RemoteMcpListenConfig,
+  StartedRemoteMcpServer,
+} from './remote/http-server.js';
+export { AmazonFederatedOAuthProvider } from './remote/lwa-oauth-provider.js';
+export type { AmazonOAuthConfig, AmazonConsentMode } from './remote/lwa-oauth-provider.js';

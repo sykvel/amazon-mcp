@@ -132,12 +132,20 @@ ADS_API_ENDPOINT=https://advertising-api.amazon.com  # Optional override
 # Build
 pnpm build
 
-# Run
+# Run (stdio)
 pnpm start
+
+# Run remote HTTP + Login with Amazon
+pnpm start:http
 
 # Development
 pnpm dev
+pnpm dev:http
 ```
+
+Remote mode requires `MCP_SERVER_URL` and an LWA redirect URI of `{MCP_SERVER_URL origin}/oauth/amazon/callback`. See the root README "Remote MCP" section.
+
+## Architecture
 
 ## Architecture
 

@@ -2,29 +2,117 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import axios from 'axios';
+import {
+  resolveMcpTransportMode,
+  readRemoteHttpEnv,
+  startRemoteMcpServer,
+  type AmazonUserTokens,
+} from 'amazon-mcp-common';
 import { validateConfig, getConfig } from './config/index.js';
 import { validateCredentials } from './auth/credential-validator.js';
 import { refreshLwaTokenForValidation } from './auth/lwa-validator.js';
 import { fetchMarketplaceParticipations } from './client/sellers-api.js';
 import { registerAllTools } from './tools/index.js';
 import { setParticipatingMarketplaceIds } from './tools/_shared/marketplace.js';
+import type { GetMarketplaceParticipationsResponse } from './types/sp-api.js';
 
 const SERVER_NAME = 'amazon-seller-mcp';
 const SERVER_VERSION = '1.0.0';
 
-async function main() {
-  // Validate configuration on startup
+function createSellerMcpServer(): McpServer {
+  const server = new McpServer(
+    {
+      name: SERVER_NAME,
+      version: SERVER_VERSION,
+    },
+    {
+      capabilities: {
+        tools: {},
+      },
+    }
+  );
+  registerAllTools(server);
+  return server;
+}
+
+async function enrichSellerTokens(tokens: AmazonUserTokens): Promise<AmazonUserTokens> {
+  const config = getConfig();
+  const next: AmazonUserTokens = {
+    ...tokens,
+    sellerId: tokens.sellerId || config.SELLER_ID,
+    marketplaceId: tokens.marketplaceId || config.MARKETPLACE_ID,
+  };
+
   try {
-    validateConfig();
+    const response = await axios.get<GetMarketplaceParticipationsResponse>(
+      `${config.SP_API_ENDPOINT}/sellers/v1/marketplaceParticipations`,
+      {
+        headers: {
+          'x-amz-access-token': tokens.accessToken,
+          'User-Agent': 'amazon-seller-mcp/1.0.0 (Language=TypeScript)',
+        },
+      }
+    );
+    const ids = (response.data.payload ?? [])
+      .filter((entry) => entry.participation?.isParticipating === true)
+      .map((entry) => entry.marketplace.id);
+    next.participatingMarketplaceIds = ids;
+    if (!next.marketplaceId && ids[0]) {
+      next.marketplaceId = ids[0];
+    }
   } catch (error) {
-    console.error('Configuration error:', error instanceof Error ? error.message : error);
-    process.exit(1);
+    console.error(
+      'Warning: could not load marketplace participations after Login with Amazon:',
+      error instanceof Error ? error.message : error
+    );
   }
 
-  // Validate LWA credentials, seller identity, and marketplace participation
-  // against Amazon BEFORE the MCP transport connects. If anything is wrong,
-  // we abort with a specific error rather than starting a server that will
-  // fail on the first tool call.
+  return next;
+}
+
+async function startHttp(): Promise<void> {
+  const config = validateConfig();
+  const remote = readRemoteHttpEnv();
+  const authorizationUrl =
+    config.SELLER_CENTRAL_URL ?? 'https://sellercentral.amazon.com/apps/authorize/consent';
+
+  const started = await startRemoteMcpServer({
+    serverName: SERVER_NAME,
+    serverVersion: SERVER_VERSION,
+    createMcpServer: createSellerMcpServer,
+    listen: { host: remote.host, port: remote.port },
+    publicUrl: remote.publicUrl,
+    allowedHosts: remote.allowedHosts,
+    resourceName: 'Amazon Seller MCP',
+    amazonOAuth: {
+      clientId: config.LWA_CLIENT_ID,
+      clientSecret: config.LWA_CLIENT_SECRET,
+      redirectUri: remote.redirectUri,
+      consentMode: 'seller-central',
+      authorizationUrl,
+      applicationId: config.SP_API_APPLICATION_ID ?? config.LWA_CLIENT_ID,
+      includeVersionBeta: remote.includeVersionBeta,
+      scopes: [],
+      enrichUserTokens: enrichSellerTokens,
+    },
+  });
+
+  const shutdown = async (): Promise<void> => {
+    await started.close();
+    process.exit(0);
+  };
+  process.on('SIGINT', () => {
+    void shutdown();
+  });
+  process.on('SIGTERM', () => {
+    void shutdown();
+  });
+}
+
+async function startStdio(): Promise<void> {
+  validateConfig();
+
   let validationResult;
   try {
     const config = getConfig();
@@ -52,26 +140,9 @@ async function main() {
       `marketplace(s): [${validationResult.participatingMarketplaceIds.join(', ')}]`
   );
 
-  // Create MCP server
-  const server = new McpServer(
-    {
-      name: SERVER_NAME,
-      version: SERVER_VERSION,
-    },
-    {
-      capabilities: {
-        tools: {},
-      },
-    }
-  );
-
-  // Store validated marketplace participations so tools can validate per-request marketplace IDs
+  const server = createSellerMcpServer();
   setParticipatingMarketplaceIds(validationResult.participatingMarketplaceIds);
 
-  // Register all tools
-  registerAllTools(server);
-
-  // Connect via stdio transport
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
@@ -79,7 +150,19 @@ async function main() {
   console.error('Connected via stdio transport');
 }
 
-// Handle uncaught errors
+async function main(): Promise<void> {
+  try {
+    if (resolveMcpTransportMode() === 'http') {
+      await startHttp();
+      return;
+    }
+    await startStdio();
+  } catch (error) {
+    console.error('Fatal error:', error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+}
+
 process.on('uncaughtException', (error) => {
   console.error('Uncaught exception:', error);
   process.exit(1);
