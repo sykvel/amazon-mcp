@@ -2,8 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../src/config/index.js', () => ({
   getConfig: () => ({
-    LWA_CLIENT_ID: 'test', LWA_CLIENT_SECRET: 'test', LWA_REFRESH_TOKEN: 'test',
-    SELLER_ID: 'test', MARKETPLACE_ID: 'ATVPDKIKX0DER',
+    LWA_CLIENT_ID: 'test',
+    LWA_CLIENT_SECRET: 'test',
+    SELLER_ID: 'test',
+    MARKETPLACE_ID: 'ATVPDKIKX0DER',
     SP_API_ENDPOINT: 'https://sellingpartnerapi-na.amazon.com',
   }),
 }));
@@ -36,7 +38,12 @@ describe('marketplace helpers', () => {
       expect(resolveMarketplaceId('A1F83G8C2ARO7P')).toBe('A1F83G8C2ARO7P');
     });
 
-    it('falls back to the configured MARKETPLACE_ID when no input is provided', () => {
+    it('falls back to the first participating marketplace when no input is provided', () => {
+      expect(resolveMarketplaceId()).toBe('ATVPDKIKX0DER');
+    });
+
+    it('falls back to the session marketplace from getConfig when no participation list is set', () => {
+      setParticipatingMarketplaceIds([]);
       expect(resolveMarketplaceId()).toBe(getConfig().MARKETPLACE_ID);
     });
   });

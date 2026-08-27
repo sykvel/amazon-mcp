@@ -1,14 +1,12 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
-import { getAmazonAuthContext, resolveMcpTransportMode } from 'amazon-mcp-common';
+import { getAmazonAuthContext } from 'amazon-mcp-common';
 
 dotenv.config();
 
 const configSchema = z.object({
   LWA_CLIENT_ID: z.string().min(1, 'LWA_CLIENT_ID is required'),
   LWA_CLIENT_SECRET: z.string().min(1, 'LWA_CLIENT_SECRET is required'),
-  ADS_REFRESH_TOKEN: z.string().min(1).optional(),
-  ADS_PROFILE_ID: z.string().min(1).optional(),
   ADS_API_REGION: z.enum(['na', 'eu', 'fe']).default('na'),
   ADS_API_ENDPOINT: z.string().url().optional(),
 });
@@ -16,15 +14,16 @@ const configSchema = z.object({
 export type AdsConfig = {
   LWA_CLIENT_ID: string;
   LWA_CLIENT_SECRET: string;
-  ADS_REFRESH_TOKEN?: string;
-  ADS_PROFILE_ID: string;
   ADS_API_REGION: 'na' | 'eu' | 'fe';
   ADS_API_ENDPOINT?: string;
+  ADS_PROFILE_ID: string;
 };
 
-let cachedConfig: AdsConfig | null = null;
+type AppConfig = Omit<AdsConfig, 'ADS_PROFILE_ID'>;
 
-export function validateConfig(): AdsConfig {
+let cachedConfig: AppConfig | null = null;
+
+export function validateConfig(): AppConfig {
   if (cachedConfig) {
     return cachedConfig;
   }
@@ -40,42 +39,22 @@ export function validateConfig(): AdsConfig {
     );
   }
 
-  const http = resolveMcpTransportMode() === 'http';
-  if (!http) {
-    const missing: string[] = [];
-    if (!result.data.ADS_REFRESH_TOKEN) {
-      missing.push('ADS_REFRESH_TOKEN');
-    }
-    if (!result.data.ADS_PROFILE_ID) {
-      missing.push('ADS_PROFILE_ID');
-    }
-    if (missing.length > 0) {
-      throw new Error(
-        `Configuration validation failed:\n${missing.map((name) => `  - ${name}: Required for stdio mode`).join('\n')}`
-      );
-    }
-  }
-
-  cachedConfig = {
-    LWA_CLIENT_ID: result.data.LWA_CLIENT_ID,
-    LWA_CLIENT_SECRET: result.data.LWA_CLIENT_SECRET,
-    ADS_REFRESH_TOKEN: result.data.ADS_REFRESH_TOKEN,
-    ADS_PROFILE_ID: result.data.ADS_PROFILE_ID ?? '',
-    ADS_API_REGION: result.data.ADS_API_REGION,
-    ADS_API_ENDPOINT: result.data.ADS_API_ENDPOINT,
-  };
+  cachedConfig = result.data;
   return cachedConfig;
 }
 
 export function getConfig(): AdsConfig {
   const config = cachedConfig ?? validateConfig();
   const ctx = getAmazonAuthContext();
-  if (!ctx) {
-    return config;
+  const profileId = ctx?.tokens.profileId;
+  if (!profileId) {
+    throw new Error(
+      'No advertising profile ID for this Login with Amazon session. Sign in again so a profile can be selected.'
+    );
   }
   return {
     ...config,
-    ADS_PROFILE_ID: ctx.tokens.profileId || config.ADS_PROFILE_ID,
+    ADS_PROFILE_ID: profileId,
   };
 }
 

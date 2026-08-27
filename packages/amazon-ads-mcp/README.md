@@ -27,9 +27,7 @@ Set the following environment variables:
 LWA_CLIENT_ID=amzn1.application-oa2-client.xxxxx
 LWA_CLIENT_SECRET=amzn1.oa2-cs.xxxxx
 
-# Ads API Credentials
-ADS_REFRESH_TOKEN=Atzr|xxxxx  # Must have advertising::campaign_management scope
-ADS_PROFILE_ID=1234567890      # Your advertising profile ID
+MCP_SERVER_URL=http://localhost:3000
 ADS_API_REGION=na              # na, eu, or fe
 ADS_API_ENDPOINT=https://advertising-api.amazon.com  # Optional override
 ```
@@ -132,20 +130,14 @@ ADS_API_ENDPOINT=https://advertising-api.amazon.com  # Optional override
 # Build
 pnpm build
 
-# Run (stdio)
+# Run (Streamable HTTP + Login with Amazon)
 pnpm start
-
-# Run remote HTTP + Login with Amazon
-pnpm start:http
 
 # Development
 pnpm dev
-pnpm dev:http
 ```
 
-Remote mode requires `MCP_SERVER_URL` and an LWA redirect URI of `{MCP_SERVER_URL origin}/oauth/amazon/callback`. See the root README "Remote MCP" section.
-
-## Architecture
+Requires `MCP_SERVER_URL` and an LWA redirect URI of `{MCP_SERVER_URL origin}/oauth/amazon/callback`. See the root README connecting section.
 
 ## Architecture
 

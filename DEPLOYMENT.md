@@ -28,11 +28,10 @@ pnpm install
 # Copy environment file
 cp .env.example .env
 
-# Edit .env with your credentials
+# Edit .env with your LWA application credentials
 # LWA_CLIENT_ID=...
 # LWA_CLIENT_SECRET=...
-# ADS_REFRESH_TOKEN=...
-# ADS_PROFILE_ID=...
+# MCP_SERVER_URL=http://localhost:3000
 # ADS_API_REGION=na
 ```
 
@@ -164,9 +163,7 @@ Runs when a tag matching `v*` is pushed:
 LWA_CLIENT_ID=amzn1.application-oa2-client.xxxxx
 LWA_CLIENT_SECRET=amzn1.oa2-cs.xxxxx
 
-# Ads API Credentials
-ADS_REFRESH_TOKEN=Atzr|xxxxx  # Must have advertising::campaign_management scope
-ADS_PROFILE_ID=1234567890      # Your advertising profile ID
+MCP_SERVER_URL=https://mcp.example.com
 ADS_API_REGION=na              # na, eu, or fe
 ADS_API_ENDPOINT=https://advertising-api.amazon.com  # Optional override
 ```

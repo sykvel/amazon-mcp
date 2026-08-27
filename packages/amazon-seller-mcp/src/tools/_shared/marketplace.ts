@@ -1,5 +1,5 @@
-import { getConfig } from '../../config/index.js';
 import { getAmazonAuthContext } from 'amazon-mcp-common';
+import { getConfig } from '../../config/index.js';
 
 let participatingMarketplaceIds: string[] = [];
 
@@ -22,6 +22,10 @@ export function resolveMarketplaceId(inputMarketplaceId?: string): string {
   const ctx = getAmazonAuthContext();
   if (ctx?.tokens.marketplaceId) {
     return ctx.tokens.marketplaceId;
+  }
+  const participating = getParticipatingMarketplaceIds();
+  if (participating[0]) {
+    return participating[0];
   }
   return getConfig().MARKETPLACE_ID;
 }

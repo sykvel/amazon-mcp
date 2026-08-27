@@ -55,9 +55,8 @@ amazon-mcp/
 
 - Node.js >= 18
 - pnpm >= 9
-- LWA (Login with Amazon) credentials — obtain them from **Seller Central → Developer** section (Apps & Credentials)
-- For Seller Central: SP-API Refresh Token, Seller ID, Marketplace ID
-- For Ads API: Refresh Token with `advertising::campaign_management` scope, Profile ID
+- LWA (Login with Amazon) application credentials — obtain them from **Seller Central → Developer** (Apps & Credentials)
+- Register `{MCP_SERVER_URL origin}/oauth/amazon/callback` as an allowed redirect URI on that application
 
 ## Installation
 
@@ -70,41 +69,29 @@ cp .env.example .env
 
 ## Configuration
 
-Edit `.env` with your credentials. You only need to configure the package you plan to use.
-
-### Seller Central (amazon-seller-mcp)
+Edit `.env` with the LWA **application** credentials and the public URL of this MCP server. Amazon user identity (refresh token, seller ID, marketplace, ads profile) is obtained when the client signs in with Login with Amazon — do not put those values in env.
 
 ```bash
 LWA_CLIENT_ID=amzn1.application-oa2-client.xxxxxxxxxxxx
 LWA_CLIENT_SECRET=amzn1.oa2-cs.xxxxxxxxxxxxxxxxxxxxxxxx
-SELLER_REFRESH_TOKEN=Atzr|IwEBIxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-SELLER_ID=Axxxxxxxxxxxxxxx
-MARKETPLACE_ID=ATVPDKIKX0DER
+MCP_SERVER_URL=http://localhost:3000
+MCP_HTTP_HOST=0.0.0.0
+MCP_HTTP_PORT=3000
 ```
 
 | Variable | Description |
 |---|---|
-| `LWA_CLIENT_ID` | Your LWA application Client ID |
-| `LWA_CLIENT_SECRET` | Your LWA application Client Secret |
-| `SELLER_REFRESH_TOKEN` | Refresh Token obtained from SP-API with seller permissions |
-| `SELLER_ID` | Your Merchant ID (Seller ID) on Amazon |
-| `MARKETPLACE_ID` | Primary marketplace ID (e.g. `ATVPDKIKX0DER` for US, `A1AM78C64UM0Y8` for MX) |
-
-### Ads API (amazon-ads-mcp)
-
-```bash
-LWA_CLIENT_ID=amzn1.application-oa2-client.xxxxxxxxxxxx
-LWA_CLIENT_SECRET=amzn1.oa2-cs.xxxxxxxxxxxxxxxxxxxxxxxx
-ADS_REFRESH_TOKEN=Atzr|IwEBIxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-ADS_PROFILE_ID=1234567890
-ADS_API_REGION=na
-```
-
-| Variable | Description |
-|---|---|
-| `ADS_REFRESH_TOKEN` | Refresh Token with `advertising::campaign_management` scope |
-| `ADS_PROFILE_ID` | Your advertising profile ID |
-| `ADS_API_REGION` | API region: `na`, `eu`, or `fe` |
+| `LWA_CLIENT_ID` | LWA application Client ID |
+| `LWA_CLIENT_SECRET` | LWA application Client Secret |
+| `MCP_SERVER_URL` | Public base URL clients use to reach this server |
+| `MCP_HTTP_HOST` | Bind address (`127.0.0.1` default, `0.0.0.0` to expose) |
+| `MCP_HTTP_PORT` | Listen port (default `3000`) |
+| `LWA_REDIRECT_URI` | Optional. Defaults to `{MCP_SERVER_URL origin}/oauth/amazon/callback` |
+| `LWA_CONSENT_DRAFT` | `true` (default) adds `version=beta` for draft SP-API apps |
+| `SP_API_APPLICATION_ID` | Optional Seller Central application id if it differs from `LWA_CLIENT_ID` |
+| `SP_API_ENDPOINT` | Optional SP-API base URL (default NA) |
+| `ADS_API_REGION` | Ads API region: `na`, `eu`, or `fe` |
+| `ADS_API_ENDPOINT` | Optional Ads API base URL override |
 
 ### Build
 
@@ -114,92 +101,21 @@ pnpm build
 
 ## Connecting to AI Clients
 
-Each MCP server communicates via **stdio**. Configure your AI client to run the corresponding server.
+The servers speak **Streamable HTTP** and authenticate clients with **Login with Amazon**. Register this redirect URI on your LWA / SP-API application:
 
-### Claude Desktop
+`http://localhost:3000/oauth/amazon/callback` (or your public `https://` URL)
 
-Edit `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "amazon-seller": {
-      "command": "node",
-      "args": ["/path/to/amazon-mcp/packages/amazon-seller-mcp/dist/index.js"],
-      "env": {
-        "LWA_CLIENT_ID": "amzn1.application-oa2-client.xxxxxxxxxxxx",
-        "LWA_CLIENT_SECRET": "amzn1.oa2-cs.xxxxxxxxxxxxxxxxxxxxxxxx",
-        "SELLER_REFRESH_TOKEN": "Atzr|IwEBIxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-        "SELLER_ID": "Axxxxxxxxxxxxxxx",
-        "MARKETPLACE_ID": "ATVPDKIKX0DER"
-      }
-    },
-    "amazon-ads": {
-      "command": "node",
-      "args": ["/path/to/amazon-mcp/packages/amazon-ads-mcp/dist/index.js"],
-      "env": {
-        "LWA_CLIENT_ID": "amzn1.application-oa2-client.xxxxxxxxxxxx",
-        "LWA_CLIENT_SECRET": "amzn1.oa2-cs.xxxxxxxxxxxxxxxxxxxxxxxx",
-        "ADS_REFRESH_TOKEN": "Atzr|IwEBIxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-        "ADS_PROFILE_ID": "1234567890",
-        "ADS_API_REGION": "na"
-      }
-    }
-  }
-}
-```
-
-### Cursor / Windsurf
-
-Add to `.cursor/mcp.json` or your editor's MCP configuration:
-
-```json
-{
-  "mcpServers": {
-    "amazon-seller": {
-      "command": "node",
-      "args": ["/path/to/amazon-mcp/packages/amazon-seller-mcp/dist/index.js"]
-    }
-  }
-}
-```
-
-Environment variables are inherited from `.env` in the project root if running from there.
-
-### Remote MCP (HTTP + Login with Amazon)
-
-Each server can also listen on Streamable HTTP. MCP clients then connect to a URL and sign in with Amazon instead of embedding refresh tokens in client config.
-
-1. Register this redirect URI on your LWA / SP-API application:
-
-   `http://localhost:3000/oauth/amazon/callback` (or your public `https://` URL)
-
-2. Set environment variables:
-
-```bash
-MCP_TRANSPORT=http
-MCP_SERVER_URL=http://localhost:3000
-MCP_HTTP_HOST=0.0.0.0          # listen on all interfaces when exposing remotely
-MCP_HTTP_PORT=3000
-LWA_CLIENT_ID=amzn1.application-oa2-client.xxxxxxxxxxxx
-LWA_CLIENT_SECRET=amzn1.oa2-cs.xxxxxxxxxxxxxxxxxxxxxxxx
-# Draft SP-API apps (default). Set false for published apps:
-LWA_CONSENT_DRAFT=true
-```
-
-Refresh tokens, `SELLER_ID`, `MARKETPLACE_ID`, and `ADS_PROFILE_ID` are optional in HTTP mode. They are obtained (or discovered) after Login with Amazon. You can still set them as defaults.
-
-3. Start a server:
+Start a server:
 
 ```bash
 # Seller Central
-cd packages/amazon-seller-mcp && pnpm start:http
+cd packages/amazon-seller-mcp && pnpm start
 
 # Ads API (use a different MCP_HTTP_PORT / MCP_SERVER_URL)
-cd packages/amazon-ads-mcp && pnpm start:http
+cd packages/amazon-ads-mcp && pnpm start
 ```
 
-4. Point the MCP client at the `/mcp` URL. Cursor example (`.cursor/mcp.json`):
+Point the MCP client at the `/mcp` URL. Cursor example (`.cursor/mcp.json`):
 
 ```json
 {
@@ -215,20 +131,7 @@ The client discovers OAuth metadata, opens Login with Amazon (Ads) or Seller Cen
 
 Use HTTPS and a public `MCP_SERVER_URL` in production. HTTP is allowed for local development. OAuth sessions are stored in memory, so a process restart requires signing in again.
 
-### Development with tsx
-
-For development without building:
-
-```json
-{
-  "mcpServers": {
-    "amazon-seller": {
-      "command": "npx",
-      "args": ["tsx", "/path/to/amazon-mcp/packages/amazon-seller-mcp/src/index.ts"]
-    }
-  }
-}
-```
+If you run both servers at once, give them different ports and register both callback URLs.
 
 ## amazon-seller-mcp - Tools
 
@@ -521,7 +424,7 @@ Shared library used by both MCP servers:
 
 | Module | Description |
 |---|---|
-| `TokenManager` | LWA OAuth 2.0 with caching, auto-refresh, and per-request remote login tokens |
+| `TokenManager` | LWA OAuth 2.0 with caching, auto-refresh, and per-request Login with Amazon tokens |
 | `AmazonApiClient` | HTTP client with `Authorization: Bearer` and rate limiting |
 | `RateLimiter` | Token bucket rate limiting per endpoint category |
 | `ReportPoller` | Async report polling with automatic decompression |
@@ -624,10 +527,6 @@ cd packages/amazon-seller-mcp && pnpm dev
 
 # Ads API
 cd packages/amazon-ads-mcp && pnpm dev
-
-# Remote HTTP + Login with Amazon
-cd packages/amazon-seller-mcp && pnpm dev:http
-cd packages/amazon-ads-mcp && pnpm dev:http
 ```
 
 ### Versioning and Publishing
@@ -654,9 +553,9 @@ Authentication failed. Please check your LWA credentials.
 ```
 
 1. Verify `LWA_CLIENT_ID` and `LWA_CLIENT_SECRET` are correct
-2. Confirm the refresh token has not expired (regenerate if needed)
-3. For Seller Central: token must have SP-API scopes
-4. For Ads API: token must have `advertising::campaign_management` scope
+2. Complete Login with Amazon in the MCP client (sessions are in-memory and expire on restart)
+3. For Seller Central: the Amazon login must grant SP-API access
+4. For Ads API: the Amazon login must include `advertising::campaign_management`
 
 ### Rate Limiting
 
@@ -676,10 +575,10 @@ Sponsored Brands and some Brand Analytics tools require active Brand Registry in
 
 ### Server Won't Start
 
-1. Verify environment variables are set
+1. Verify `LWA_CLIENT_ID`, `LWA_CLIENT_SECRET`, and `MCP_SERVER_URL` are set
 2. Run `pnpm build` before using `node dist/index.js`
 3. In development use `pnpm dev` (tsx) to skip building
-4. Check stderr output: the server validates credentials against Amazon before accepting connections
+4. Register `{origin}/oauth/amazon/callback` on the LWA / SP-API application
 
 ### Common Marketplace IDs
 

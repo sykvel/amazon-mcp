@@ -1,5 +1,5 @@
 import { AmazonApiClient, type AmazonApiError } from 'amazon-mcp-common';
-import { getConfig, getAdsApiEndpoint } from '../config/index.js';
+import { getConfig, validateConfig, getAdsApiEndpoint } from '../config/index.js';
 import { getTokenManager } from '../auth/token-manager.js';
 import { getRateLimiter } from './rate-limiter.js';
 import axios from 'axios';
@@ -100,7 +100,7 @@ let clientInstance: AmazonApiClient | null = null;
 
 export function getAdsAPIClient(): AmazonApiClient {
   if (!clientInstance) {
-    const config = getConfig();
+    const config = validateConfig();
     const tokenManager = getTokenManager();
     const rateLimiter = getRateLimiter('default');
     const baseURL = getAdsApiEndpoint(config.ADS_API_REGION, config.ADS_API_ENDPOINT);
@@ -115,17 +115,8 @@ export function getAdsAPIClient(): AmazonApiClient {
         'Amazon-Advertising-API-ClientId': config.LWA_CLIENT_ID,
       },
       resolveAdditionalHeaders: (): Record<string, string> => {
-        const profileId = getConfig().ADS_PROFILE_ID;
-        if (!profileId) {
-          throw new AdsAPIError(
-            'No advertising profile ID. Set ADS_PROFILE_ID or complete Login with Amazon so a profile can be selected.',
-            undefined,
-            'MISSING_PROFILE',
-            false
-          );
-        }
         return {
-          'Amazon-Advertising-API-Scope': profileId,
+          'Amazon-Advertising-API-Scope': getConfig().ADS_PROFILE_ID,
         };
       },
       errorParser: parseAdsApiError as (error: unknown) => AmazonApiError,

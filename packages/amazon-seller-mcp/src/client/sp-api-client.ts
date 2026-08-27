@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { AmazonApiClient, type AmazonApiError } from 'amazon-mcp-common';
-import { getConfig } from '../config/index.js';
+import { validateConfig } from '../config/index.js';
 import { getTokenManager } from '../auth/token-manager.js';
 import { getRateLimiter } from './rate-limiter.js';
 
@@ -99,7 +99,7 @@ let clientInstance: AmazonApiClient | null = null;
 
 export function getSPAPIClient(): AmazonApiClient {
   if (!clientInstance) {
-    const config = getConfig();
+    const config = validateConfig();
     const tokenManager = getTokenManager();
     const rateLimiter = getRateLimiter('default');
 

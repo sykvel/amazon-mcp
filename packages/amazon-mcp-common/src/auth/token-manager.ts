@@ -163,7 +163,7 @@ export class TokenManager {
   private async refreshConfiguredToken(): Promise<LWAValidationResult> {
     if (!this.config.refreshToken) {
       throw new Error(
-        'No Amazon credentials available. Complete Login with Amazon, or set a refresh token for stdio mode.'
+        'No Amazon credentials available. Complete Login with Amazon first.'
       );
     }
     const refreshed = await this.refreshWithToken(this.config.refreshToken);

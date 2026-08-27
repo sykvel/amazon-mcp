@@ -1,10 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../src/config/index.js', () => ({
+  validateConfig: () => ({
+    LWA_CLIENT_ID: 'test-client-id',
+    LWA_CLIENT_SECRET: 'test-client-secret',
+    SP_API_ENDPOINT: 'https://sellingpartnerapi-na.amazon.com',
+  }),
   getConfig: () => ({
     LWA_CLIENT_ID: 'test-client-id',
     LWA_CLIENT_SECRET: 'test-client-secret',
-    LWA_REFRESH_TOKEN: 'test-refresh-token',
     SELLER_ID: 'test',
     MARKETPLACE_ID: 'ATVPDKIKX0DER',
     SP_API_ENDPOINT: 'https://sellingpartnerapi-na.amazon.com',

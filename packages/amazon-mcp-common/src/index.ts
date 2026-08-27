@@ -43,8 +43,6 @@ export type { AmazonRegion, ApiEndpoint } from './types/common.js';
 export { ENDPOINTS, MARKETPLACE_IDS } from './types/common.js';
 
 // Remote MCP (Streamable HTTP + Login with Amazon)
-export { resolveMcpTransportMode } from './remote/transport.js';
-export type { McpTransportMode } from './remote/transport.js';
 export { readRemoteHttpEnv } from './remote/env.js';
 export type { RemoteHttpEnv } from './remote/env.js';
 export {
