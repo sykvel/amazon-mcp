@@ -18,6 +18,13 @@ import {
   type AmazonOAuthConfig,
 } from './lwa-oauth-provider.js';
 import { InMemoryOAuthStore, setActiveOAuthStore } from './oauth-store.js';
+import { logError, logInfo, summarizeJsonRpc } from '../log.js';
+import {
+  attachMcpProtocolLogging,
+  httpNotFoundHandler,
+  mcpHttpLogger,
+  wrapTransportLogging,
+} from './request-log.js';
 
 export interface RemoteMcpListenConfig {
   host: string;
@@ -65,6 +72,7 @@ export async function startRemoteMcpServer(
   });
 
   app.use(corsMiddleware);
+  app.use('/mcp', mcpHttpLogger);
 
   app.use(
     mcpAuthRouter({
@@ -112,7 +120,10 @@ export async function startRemoteMcpServer(
           () => handler(req, res)
         );
       })().catch((error: unknown) => {
-        console.error('MCP request failed:', error);
+        logError('MCP request failed', {
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        });
         if (!res.headersSent) {
           res.status(500).json({
             jsonrpc: '2.0',
@@ -140,6 +151,7 @@ export async function startRemoteMcpServer(
   app.post('/mcp', authMiddleware, withAmazonContext(handleMcpPost(options)));
   app.get('/mcp', authMiddleware, withAmazonContext(handleMcpGet));
   app.delete('/mcp', authMiddleware, withAmazonContext(handleMcpDelete));
+  app.use(httpNotFoundHandler);
 
   const httpServer = await new Promise<Server>((resolve, reject) => {
     const server = app.listen(options.listen.port, options.listen.host);
@@ -152,7 +164,10 @@ export async function startRemoteMcpServer(
       try {
         await transport.close();
       } catch (error) {
-        console.error(`Error closing MCP session ${sessionId}:`, error);
+        logError('Error closing MCP session', {
+          sessionId,
+          message: error instanceof Error ? error.message : String(error),
+        });
       }
       transports.delete(sessionId);
     }
@@ -168,12 +183,12 @@ export async function startRemoteMcpServer(
     setActiveOAuthStore(undefined);
   };
 
-  console.log(
+  logInfo(
     `${options.serverName} v${options.serverVersion} remote MCP listening on ${options.listen.host}:${options.listen.port}`
   );
-  console.log(`MCP endpoint: ${mcpUrl.href}`);
-  console.log(`Login with Amazon callback: ${options.amazonOAuth.redirectUri}`);
-  console.log('Clients should connect with OAuth (Login with Amazon).');
+  logInfo('MCP endpoint', { url: mcpUrl.href });
+  logInfo('Login with Amazon callback', { url: options.amazonOAuth.redirectUri });
+  logInfo('Clients should connect with OAuth (Login with Amazon).');
 
   return { httpServer, mcpUrl, issuerUrl, close };
 }
@@ -206,7 +221,9 @@ function handleMcpPost(
       };
 
       const server = options.createMcpServer();
+      attachMcpProtocolLogging(server);
       await server.connect(transport);
+      wrapTransportLogging(transport);
       await transport.handleRequest(req, res, req.body);
       return;
     }
@@ -216,12 +233,19 @@ function handleMcpPost(
       error: { code: -32000, message: 'Bad Request: No valid session ID provided' },
       id: null,
     });
+    logError('MCP session missing', {
+      http: req.method,
+      path: req.path,
+      sessionId: req.headers['mcp-session-id'],
+      ...summarizeJsonRpc(req.body),
+    });
   };
 }
 
 async function handleMcpGet(req: Request, res: Response): Promise<void> {
   const sessionId = req.headers['mcp-session-id'] as string | undefined;
   if (!sessionId || !transports.has(sessionId)) {
+    logError('MCP session not found', { http: req.method, path: req.path, sessionId });
     res.status(400).send('Invalid or missing session ID');
     return;
   }
@@ -231,6 +255,7 @@ async function handleMcpGet(req: Request, res: Response): Promise<void> {
 async function handleMcpDelete(req: Request, res: Response): Promise<void> {
   const sessionId = req.headers['mcp-session-id'] as string | undefined;
   if (!sessionId || !transports.has(sessionId)) {
+    logError('MCP session not found', { http: req.method, path: req.path, sessionId });
     res.status(400).send('Invalid or missing session ID');
     return;
   }
@@ -257,7 +282,7 @@ function allowHttpIssuerIfNeeded(issuerUrl: URL): void {
     return;
   }
   process.env.MCP_DANGEROUSLY_ALLOW_INSECURE_ISSUER_URL = 'true';
-  console.warn(
+  logInfo(
     'MCP_SERVER_URL is HTTP. Enabling insecure issuer URLs for local development. Use HTTPS in production.'
   );
 }

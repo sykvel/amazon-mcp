@@ -38,6 +38,18 @@ export type {
   PollOptions,
 } from './utils/report-poller.js';
 
+export {
+  getLogLevel,
+  logDebug,
+  logError,
+  logInfo,
+  parseLogLevel,
+  redact,
+  setLogSink,
+  summarizeJsonRpc,
+} from './log.js';
+export type { LogLevel } from './log.js';
+
 // Types
 export type { AmazonRegion, ApiEndpoint } from './types/common.js';
 export { ENDPOINTS, MARKETPLACE_IDS } from './types/common.js';

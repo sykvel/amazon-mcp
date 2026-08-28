@@ -1,6 +1,7 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from 'axios';
 import type { TokenManager } from '../auth/token-manager.js';
 import type { RateLimiter } from './rate-limiter.js';
+import { logDebug, logError, redact } from '../log.js';
 
 export type AuthHeaderName = 'x-amz-access-token' | 'Authorization';
 
@@ -172,8 +173,20 @@ export class AmazonApiClient {
     let tokenRefreshed = false;
 
     for (let attempt = 0; attempt <= retries; attempt++) {
+      logDebug('Amazon API request', {
+        method: axiosConfig.method,
+        url: axiosConfig.url,
+        params: redact(axiosConfig.params),
+        data: redact(axiosConfig.data),
+        attempt,
+      });
       try {
         const response: AxiosResponse<T> = await this.client.request(axiosConfig);
+        logDebug('Amazon API response', {
+          method: axiosConfig.method,
+          url: axiosConfig.url,
+          status: response.status,
+        });
         return response.data;
       } catch (error) {
         lastError = this.errorParser(error);
@@ -181,21 +194,55 @@ export class AmazonApiClient {
         if (lastError.statusCode === 401 && !tokenRefreshed) {
           this.config.tokenManager.clearCache();
           tokenRefreshed = true;
+          logDebug('Amazon API unauthorized, refreshing token', {
+            method: axiosConfig.method,
+            url: axiosConfig.url,
+          });
           continue;
         }
 
         if (lastError.retryable && attempt < retries) {
           const delay = retryDelayMs * Math.pow(2, attempt);
+          logDebug('Amazon API retry', {
+            method: axiosConfig.method,
+            url: axiosConfig.url,
+            status: lastError.statusCode,
+            code: lastError.code,
+            delayMs: delay,
+            attempt,
+          });
           await sleep(delay);
           continue;
         }
 
+        logAmazonApiError(axiosConfig, lastError, error);
         throw lastError;
       }
     }
 
+    if (lastError) {
+      logAmazonApiError(axiosConfig, lastError);
+    }
     throw lastError;
   }
+}
+
+function logAmazonApiError(
+  axiosConfig: AxiosRequestConfig,
+  apiError: AmazonApiError,
+  rawError?: unknown
+): void {
+  logError('Amazon API error', {
+    method: axiosConfig.method,
+    url: axiosConfig.url,
+    params: redact(axiosConfig.params),
+    data: redact(axiosConfig.data),
+    status: apiError.statusCode,
+    code: apiError.code,
+    message: apiError.message,
+    details: apiError.details,
+    body: axios.isAxiosError(rawError) ? redact(rawError.response?.data) : undefined,
+  });
 }
 
 function defaultErrorParser(error: unknown): AmazonApiError {

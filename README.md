@@ -86,6 +86,7 @@ MCP_HTTP_PORT=3000
 | `MCP_SERVER_URL` | Public base URL clients use to reach this server |
 | `MCP_HTTP_HOST` | Bind address (`127.0.0.1` default, `0.0.0.0` to expose) |
 | `MCP_HTTP_PORT` | Listen port (default `3000`) |
+| `MCP_LOG_LEVEL` | Request tracing: `silent`, `error`, `info` (default), or `debug` |
 | `LWA_REDIRECT_URI` | Optional. Defaults to `{MCP_SERVER_URL origin}/oauth/amazon/callback` |
 | `LWA_CONSENT_DRAFT` | `true` (default) adds `version=beta` for draft SP-API apps |
 | `SP_API_APPLICATION_ID` | Optional Seller Central application id if it differs from `LWA_CLIENT_ID` |
@@ -564,6 +565,15 @@ Rate limited by Amazon API. Please try again later.
 ```
 
 The client automatically retries with exponential backoff. If persistent, reduce call frequency.
+
+### Request tracing
+
+Errors such as JSON-RPC **Method not found** and Amazon API 404s are logged with method and parameters. Set `MCP_LOG_LEVEL=debug` to also trace successful MCP and Amazon API calls.
+
+```
+[error] MCP method not found {"method":"tools/unknown","id":1,"params":{...}}
+[error] Amazon API error {"method":"GET","url":"/orders/v0/orders","status":404,...}
+```
 
 ### Brand Registry Required
 
